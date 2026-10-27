@@ -12,8 +12,6 @@
 #endif
 
 using namespace geode::prelude;
-
-// Глобальные настройки (сохраняются между открытиями меню)
 static float g_savedBPM = 120.0f;
 static float g_savedOffset = 0.0f;
 static int g_savedSubdivision = 4;
@@ -45,7 +43,6 @@ public:
     bool init(float width, float height) {
         if (!Popup::init(width, height)) return false;
 
-        // Заголовок окна
         auto title = CCLabelBMFont::create("BPM Guide Generator", "bigFont.fnt");
         title->setScale(0.5f);
         title->setPosition({m_size.width / 2.0f, m_size.height - 25.0f});
@@ -55,7 +52,6 @@ public:
         menu->setPosition({0, 0});
         m_mainLayer->addChild(menu);
 
-        // Поле ввода BPM
         auto bpmLabel = CCLabelBMFont::create("BPM:", "goldFont.fnt");
         bpmLabel->setScale(0.5f);
         bpmLabel->setPosition({m_size.width / 2.0f - 110.f, m_size.height - 65.f});
@@ -79,7 +75,6 @@ public:
             menu->addChild(tapBtn);
         }
 
-        // Поле ввода Offset
         auto offsetLabel = CCLabelBMFont::create("Offset (ms):", "goldFont.fnt");
         offsetLabel->setScale(0.5f);
         offsetLabel->setPosition({m_size.width / 2.0f - 110.f, m_size.height - 110.f});
@@ -91,13 +86,11 @@ public:
         m_offsetInput->setPosition({m_size.width / 2.0f + 25.f, m_size.height - 110.f});
         m_mainLayer->addChild(m_offsetInput);
 
-        // Выбор шага сетки Grid Step
         auto subLabel = CCLabelBMFont::create("Grid Step:", "goldFont.fnt");
         subLabel->setScale(0.5f);
         subLabel->setPosition({m_size.width / 2.0f - 110.f, m_size.height - 155.f});
         m_mainLayer->addChild(subLabel);
 
-        // Восстанавливаем сохраненный выбор сетки
         m_selectedSubdivision = g_savedSubdivision;
         const char* subNames[] = { "1/2", "1/4", "1/8" };
         int subValues[] = { 2, 4, 8 };
@@ -126,7 +119,6 @@ public:
             }
         }
 
-        // Кнопка открытия папки с песней
         auto folderSprite = ButtonSprite::create("Song Folder", 180, 0, 0.5f, true, "bigFont.fnt", "GJ_button_03.png");
         if (folderSprite) {
             folderSprite->setScale(0.65f);
@@ -139,7 +131,6 @@ public:
             menu->addChild(folderBtn);
         }
 
-        // Кнопка Generate
         auto genSprite = ButtonSprite::create("Generate", 120, 0, 0.5f, true, "bigFont.fnt", "GJ_button_01.png");
         if (genSprite) {
             genSprite->setScale(0.75f);
@@ -152,7 +143,6 @@ public:
             menu->addChild(genBtn);
         }
 
-        // Кнопка Clear
         auto clearSprite = ButtonSprite::create("Clear", 120, 0, 0.5f, true, "bigFont.fnt", "GJ_button_06.png");
         if (clearSprite) {
             clearSprite->setScale(0.75f);
@@ -329,7 +319,7 @@ public:
     }
 };
 
-// Метроном через FMOD во время плейтеста
+
 class $modify(MetronomeLevelLayer, LevelEditorLayer) {
     struct Fields {
         float playTestTime = 0.0f;
