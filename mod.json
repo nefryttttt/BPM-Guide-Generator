@@ -8,7 +8,7 @@
     },
     "id": "nefryttt.bpm-guide-generator",
     "name": "BPM Guide Generator",
-    "version": "v1.0.4",
+    "version": "v1.0.5",
     "developer": "nefryttt",
     "description": "Generate rhythm guidelines in the editor.",
     "dependencies": {
