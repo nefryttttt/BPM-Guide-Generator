@@ -324,7 +324,7 @@ class $modify(MetronomeLevelLayer, LevelEditorLayer) {
                         auto& channel = *(*fmod).m_globalChannel;
                         channel.setPaused(false);
                     }
-                    (*fmod).playEffectAsync("buttonSound.ogg");
+                    (*fmod).playEffectAsync("chestClick.ogg");
                 }
                 
                 nt += interval;
