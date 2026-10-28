@@ -1,6 +1,6 @@
 # Changelog
 v1.0.4
-- rebuild menu
+- menu rebuilded
 - fix clear button
 - fix menu wrong size
 
