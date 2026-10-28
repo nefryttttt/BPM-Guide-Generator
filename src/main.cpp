@@ -5,6 +5,8 @@
 #include <Geode/ui/TextInput.hpp>
 #include <chrono>
 #include <filesystem>
+#include <algorithm>
+#include <cmath>
 
 #ifdef GEODE_IS_WINDOWS
 #include <windows.h>
@@ -15,17 +17,20 @@ using namespace geode::prelude;
 
 static float g_bpm = 120.0f;
 static float g_offset = 0.0f;
-static int g_sub = 4;
+static std::string g_gridStepStr = "1/4";
 
 class BPMGuidePopup : public Popup {
 protected:
     TextInput* m_bpmInput = nullptr;
     TextInput* m_offsetInput = nullptr;
-    int m_sub = 4;
+    TextInput* m_customGridInput = nullptr;
+    std::string m_gridStep = "1/4";
     
     struct SubBtn {
         CCMenuItemSpriteExtra* btn;
-        int val;
+        CCNode* greenSpr;
+        CCNode* blueSpr;
+        std::string valName;
     };
     std::vector<SubBtn> m_btns;
     std::vector<double> m_taps;
@@ -33,7 +38,7 @@ protected:
 public:
     static BPMGuidePopup* create() {
         auto ret = new BPMGuidePopup();
-        if (ret && (*ret).init(380.f, 290.f)) {
+        if (ret && (*ret).init(380.f, 220.f)) {
             (*ret).autorelease();
             return ret;
         }
@@ -47,86 +52,168 @@ public:
         auto& ml = *m_mainLayer;
 
         auto title = CCLabelBMFont::create("BPM Guide Generator", "bigFont.fnt");
-        (*title).setScale(0.5f);
-        (*title).setPosition({m_size.width / 2.0f, m_size.height - 25.0f});
+        (*title).setScale(0.52f);
+        (*title).setPosition({m_size.width / 2.0f, m_size.height - 20.f});
         ml.addChild(title);
 
         auto menu = CCMenu::create();
         (*menu).setPosition({0, 0});
         ml.addChild(menu);
 
+        float fieldX = 155.f;
+
         auto bpmLabel = CCLabelBMFont::create("BPM:", "goldFont.fnt");
-        (*bpmLabel).setScale(0.5f);
-        (*bpmLabel).setPosition({m_size.width / 2.0f - 110.f, m_size.height - 65.f});
+        (*bpmLabel).setScale(0.45f);
+        (*bpmLabel).setAnchorPoint({0.0f, 0.5f});
+        (*bpmLabel).setPosition({25.f, m_size.height - 55.f});
         ml.addChild(bpmLabel);
 
-        m_bpmInput = TextInput::create(80.f, fmt::format("{:.1f}", g_bpm), "bigFont.fnt");
+        m_bpmInput = TextInput::create(75.f, fmt::format("{:.1f}", g_bpm), "bigFont.fnt");
         (*m_bpmInput).setFilter("0123456789.");
         (*m_bpmInput).setMaxCharCount(6);
-        (*m_bpmInput).setPosition({m_size.width / 2.0f - 15.f, m_size.height - 65.f});
+        (*m_bpmInput).setScale(0.6f);
+        (*m_bpmInput).setPosition({fieldX, m_size.height - 55.f});
         ml.addChild(m_bpmInput);
 
-        auto tapSpr = ButtonSprite::create("Tap", 50, 0, 0.5f, true, "bigFont.fnt", "GJ_button_02.png");
+        auto tapSpr = ButtonSprite::create("Tap", 50, 0, 0.45f, true, "bigFont.fnt", "GJ_button_02.png");
         (*tapSpr).setScale(0.65f);
         auto tapBtn = CCMenuItemSpriteExtra::create(
             tapSpr, this, menu_selector(BPMGuidePopup::onTap)
         );
-        (*tapBtn).setPosition({m_size.width / 2.0f + 65.f, m_size.height - 65.f});
+        (*tapBtn).setPosition({fieldX + 58.f, m_size.height - 55.f});
         (*menu).addChild(tapBtn);
 
         auto offsetLabel = CCLabelBMFont::create("Offset (ms):", "goldFont.fnt");
-        (*offsetLabel).setScale(0.5f);
-        (*offsetLabel).setPosition({m_size.width / 2.0f - 110.f, m_size.height - 110.f});
+        (*offsetLabel).setScale(0.45f);
+        (*offsetLabel).setAnchorPoint({0.0f, 0.5f});
+        (*offsetLabel).setPosition({25.f, m_size.height - 95.f});
         ml.addChild(offsetLabel);
 
-        m_offsetInput = TextInput::create(100.f, fmt::format("{:.0f}", g_offset), "bigFont.fnt");
+        m_offsetInput = TextInput::create(75.f, fmt::format("{:.0f}", g_offset), "bigFont.fnt");
         (*m_offsetInput).setFilter("0123456789.-");
         (*m_offsetInput).setMaxCharCount(6);
-        (*m_offsetInput).setPosition({m_size.width / 2.0f + 25.f, m_size.height - 110.f});
+        (*m_offsetInput).setScale(0.6f);
+        (*m_offsetInput).setPosition({fieldX, m_size.height - 95.f});
         ml.addChild(m_offsetInput);
 
         auto subLabel = CCLabelBMFont::create("Grid Step:", "goldFont.fnt");
-        (*subLabel).setScale(0.5f);
-        (*subLabel).setPosition({m_size.width / 2.0f - 110.f, m_size.height - 155.f});
+        (*subLabel).setScale(0.45f);
+        (*subLabel).setAnchorPoint({0.0f, 0.5f});
+        (*subLabel).setPosition({25.f, m_size.height - 135.f});
         ml.addChild(subLabel);
 
-        m_sub = g_sub;
+        m_gridStep = g_gridStepStr;
         const char* names[] = { "1/2", "1/4", "1/8" };
-        int vals[] = { 2, 4, 8 };
+
+        float rowStartX = 122.f;
+        float spacing = 43.0f; 
+
+        auto sampleSpr = ButtonSprite::create("1/4", 38, 24, 0.5f, true, "bigFont.fnt", "GJ_button_01.png");
+        float exactBtnWidth = sampleSpr->getContentSize().width;
 
         for (int i = 0; i < 3; ++i) {
-            bool selected = (vals[i] == m_sub);
-            auto spr = ButtonSprite::create(names[i], 55, 30, 0.6f, true, "bigFont.fnt", "GJ_button_01.png");
-            (*spr).setScale(selected ? 0.85f : 0.8f);
-            if (selected) (*spr).setColor({0, 255, 0});
+            bool selected = (names[i] == m_gridStep);
 
-            auto btn = CCMenuItemSpriteExtra::create(spr, this, menu_selector(BPMGuidePopup::onSubSelect));
-            (*btn).setTag(vals[i]);
-            (*btn).setPosition({m_size.width / 2.0f - 35.f + (i * 65.0f), m_size.height - 155.f});
+            auto greenBtnSpr = ButtonSprite::create(names[i], 38, 24, 0.5f, true, "bigFont.fnt", "GJ_button_01.png");
+            (*greenBtnSpr).setScale(0.6f);
+
+            auto blueBtnSpr = ButtonSprite::create(names[i], 38, 24, 0.5f, true, "bigFont.fnt", "GJ_button_02.png");
+            (*blueBtnSpr).setScale(0.6f);
+
+            auto container = CCNode::create();
+            CCSize sprSize = (*greenBtnSpr).getScaledContentSize();
+            (*container).setContentSize(sprSize);
+
+            (*greenBtnSpr).setPosition(sprSize / 2.0f);
+            (*blueBtnSpr).setPosition(sprSize / 2.0f);
+
+            (*greenBtnSpr).setVisible(!selected);
+            (*blueBtnSpr).setVisible(selected);
+
+            (*container).addChild(greenBtnSpr);
+            (*container).addChild(blueBtnSpr);
+
+            auto btn = CCMenuItemSpriteExtra::create(container, this, menu_selector(BPMGuidePopup::onSubSelect));
+            (*btn).setTag(i);
+            (*btn).setPosition({rowStartX + (i * spacing), m_size.height - 135.f});
             (*menu).addChild(btn);
             
-            m_btns.push_back({btn, vals[i]});
+            m_btns.push_back({btn, greenBtnSpr, blueBtnSpr, names[i]});
         }
 
-        auto folderSpr = ButtonSprite::create("Song Folder", 180, 0, 0.5f, true, "bigFont.fnt", "GJ_button_03.png");
-        (*folderSpr).setScale(0.65f);
-        auto folderBtn = CCMenuItemSpriteExtra::create(folderSpr, this, menu_selector(BPMGuidePopup::onOpenFolder));
-        (*folderBtn).setPosition({m_size.width / 2.0f, m_size.height - 200.f});
-        (*menu).addChild(folderBtn);
+        bool isPreset = false;
+        for (auto& name : names) {
+            if (m_gridStep == name) {
+                isPreset = true;
+                break;
+            }
+        }
 
-        auto genSpr = ButtonSprite::create("Generate", 120, 0, 0.5f, true, "bigFont.fnt", "GJ_button_01.png");
-        (*genSpr).setScale(0.75f);
+        std::string initialCustom = isPreset ? "" : m_gridStep;
+
+        m_customGridInput = TextInput::create(exactBtnWidth, initialCustom, "bigFont.fnt");
+        (*m_customGridInput).setFilter("0123456789./");
+        (*m_customGridInput).setMaxCharCount(6);
+        (*m_customGridInput).setScale(0.6f);
+        (*m_customGridInput).setPosition({rowStartX + (3 * spacing), m_size.height - 135.f});
+        
+        (*m_customGridInput).setCallback([this](std::string const& text) {
+            if (!text.empty()) {
+                m_gridStep = text;
+                updateButtonStates(""); 
+            }
+        });
+        ml.addChild(m_customGridInput);
+
+        auto genSpr = ButtonSprite::create("Generate", 95, 32, 0.5f, true, "bigFont.fnt", "GJ_button_01.png");
+        (*genSpr).setScale(0.7f);
         auto genBtn = CCMenuItemSpriteExtra::create(genSpr, this, menu_selector(BPMGuidePopup::onGenerate));
-        (*genBtn).setPosition({m_size.width / 2.0f - 70.f, 30.f});
+        (*genBtn).setPosition({m_size.width / 2.0f - 100.f, 25.f});
         (*menu).addChild(genBtn);
 
-        auto clearSpr = ButtonSprite::create("Clear", 120, 0, 0.5f, true, "bigFont.fnt", "GJ_button_06.png");
-        (*clearSpr).setScale(0.75f);
+        auto folderSpr = ButtonSprite::create("Song Folder", 105, 32, 0.5f, true, "bigFont.fnt", "GJ_button_03.png");
+        (*folderSpr).setScale(0.7f);
+        auto folderBtn = CCMenuItemSpriteExtra::create(folderSpr, this, menu_selector(BPMGuidePopup::onOpenFolder));
+        (*folderBtn).setPosition({m_size.width / 2.0f, 25.f});
+        (*menu).addChild(folderBtn);
+
+        auto clearSpr = ButtonSprite::create("Clear", 95, 32, 0.5f, true, "bigFont.fnt", "GJ_button_06.png");
+        (*clearSpr).setScale(0.7f);
         auto clearBtn = CCMenuItemSpriteExtra::create(clearSpr, this, menu_selector(BPMGuidePopup::onClear));
-        (*clearBtn).setPosition({m_size.width / 2.0f + 70.f, 30.f});
+        (*clearBtn).setPosition({m_size.width / 2.0f + 100.f, 25.f});
         (*menu).addChild(clearBtn);
 
         return true;
+    }
+
+    static float getMultiplier(const std::string& str) {
+        std::string s = str;
+        s.erase(std::remove_if(s.begin(), s.end(), ::isspace), s.end());
+        if (s.empty()) return 1.0f;
+
+        size_t slash = s.find('/');
+        if (slash != std::string::npos) {
+            std::string numStr = s.substr(0, slash);
+            std::string denStr = s.substr(slash + 1);
+            float num = utils::numFromString<float>(numStr).unwrapOr(1.0f);
+            float den = utils::numFromString<float>(denStr).unwrapOr(4.0f);
+            if (den != 0.0f) {
+                return 4.0f * (num / den);
+            }
+        } else {
+            return utils::numFromString<float>(s).unwrapOr(1.0f);
+        }
+        return 1.0f;
+    }
+
+    void updateButtonStates(const std::string& activeName) {
+        for (auto& item : m_btns) {
+            bool selected = (item.valName == activeName);
+            if (item.greenSpr && item.blueSpr) {
+                (*item.greenSpr).setVisible(!selected);
+                (*item.blueSpr).setVisible(selected);
+            }
+        }
     }
 
     void saveValues() {
@@ -140,7 +227,13 @@ public:
             std::replace(str.begin(), str.end(), ',', '.');
             g_offset = utils::numFromString<float>(str).unwrapOr(0.0f);
         }
-        g_sub = m_sub;
+        if (m_customGridInput) {
+            std::string str = (*m_customGridInput).getString();
+            if (!str.empty()) {
+                m_gridStep = str;
+            }
+        }
+        g_gridStepStr = m_gridStep;
     }
 
     void onClose(CCObject* sender) {
@@ -185,8 +278,6 @@ public:
         
         int songID = (*editor.m_level).m_songID;
         if (songID <= 0) {
-            auto notif = Notification::create("Song ID not found!", NotificationIcon::Error, 2.0f);
-            (*notif).show();
             return;
         }
 
@@ -213,27 +304,20 @@ public:
 #else
             file::openFolder(targetPath.parent_path());
 #endif
-            auto notif = Notification::create("Song highlighted in Explorer!", NotificationIcon::Success, 2.0f);
-            (*notif).show();
         } else {
             file::openFolder(savePath);
-            auto notif = Notification::create("Opened saves folder", NotificationIcon::Warning, 2.5f);
-            (*notif).show();
         }
     }
 
     void onSubSelect(CCObject* sender) {
-        m_sub = (*sender).getTag();
-        g_sub = m_sub;
-
-        for (auto& item : m_btns) {
-            bool selected = (item.val == m_sub);
-            if (item.btn && (*item.btn).getNormalImage()) {
-                if (auto spr = static_cast<ButtonSprite*>((*item.btn).getNormalImage())) {
-                    (*spr).setColor(selected ? ccColor3B{0, 255, 0} : ccColor3B{255, 255, 255});
-                    (*item.btn).setScale(selected ? 0.85f : 0.8f);
-                }
+        int idx = (*sender).getTag();
+        if (idx >= 0 && idx < m_btns.size()) {
+            m_gridStep = m_btns[idx].valName;
+            g_gridStepStr = m_gridStep;
+            if (m_customGridInput) {
+                (*m_customGridInput).setString("");
             }
+            updateButtonStates(m_gridStep);
         }
     }
 
@@ -244,7 +328,8 @@ public:
         auto& editor = *editorPtr;
 
         float offsetSec = g_offset / 1000.0f;
-        float interval = (60.0f / g_bpm) * (4.0f / static_cast<float>(g_sub));
+        float mult = getMultiplier(g_gridStepStr);
+        float interval = (60.0f / g_bpm) * mult;
         std::string guidelinesData = "";
 
         for (float t = offsetSec; t <= 180.0f; t += interval) {
@@ -252,8 +337,14 @@ public:
         }
         (*editor.m_levelSettings).m_guidelineString = guidelinesData;
 
-        auto oldNode = editor.m_objectLayer ? (*editor.m_objectLayer).getChildByID("bpm-guidelines-drawer") : editor.getChildByID("bpm-guidelines-drawer");
-        if (oldNode) (*oldNode).removeFromParent();
+        if (auto oldNode = editor.getChildByID("bpm-guidelines-drawer")) {
+            oldNode->removeFromParent();
+        }
+        if (editor.m_objectLayer) {
+            if (auto oldNode = editor.m_objectLayer->getChildByID("bpm-guidelines-drawer")) {
+                oldNode->removeFromParent();
+            }
+        }
 
         auto drawNode = CCDrawNode::create();
         (*drawNode).setID("bpm-guidelines-drawer");
@@ -282,8 +373,14 @@ public:
         
         (*editor.m_levelSettings).m_guidelineString = "";
 
-        auto oldNode = editor.m_objectLayer ? (*editor.m_objectLayer).getChildByID("bpm-guidelines-drawer") : editor.getChildByID("bpm-guidelines-drawer");
-        if (oldNode) (*oldNode).removeFromParent();
+        if (auto oldNode = editor.getChildByID("bpm-guidelines-drawer")) {
+            oldNode->removeFromParent();
+        }
+        if (editor.m_objectLayer) {
+            if (auto oldNode = editor.m_objectLayer->getChildByID("bpm-guidelines-drawer")) {
+                oldNode->removeFromParent();
+            }
+        }
 
         auto notif = Notification::create("Guidelines cleared!", NotificationIcon::Error, 2.0f);
         (*notif).show();
@@ -305,7 +402,8 @@ class $modify(MetronomeLevelLayer, LevelEditorLayer) {
 
         if (isPlaying && g_bpm > 0.0f) {
             float offsetSec = g_offset / 1000.0f;
-            float interval = (60.0f / g_bpm) * (4.0f / static_cast<float>(g_sub));
+            float mult = BPMGuidePopup::getMultiplier(g_gridStepStr);
+            float interval = (60.0f / g_bpm) * mult;
 
             auto& pt = m_fields->nextTickTime;
             auto& nt = m_fields->playTestTime;
